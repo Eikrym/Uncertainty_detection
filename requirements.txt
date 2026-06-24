@@ -1,0 +1,10 @@
+torch
+transformers
+transformer-lens
+huggingface_hub
+datasets
+matplotlib
+scikit-learn
+numpy
+accelerate
+
