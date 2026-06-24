@@ -1,4 +1,4 @@
-from base import experiments_base
+from base import *
 
 class LogitLensAnalysis(experiments_base):
     def __init__(self):
@@ -80,71 +80,16 @@ class LogitLensAnalysis(experiments_base):
 
         return instabilities
     
-
-
-    #just to replicate old results
-    def run(self):
+    def run_analysis(self, manipulation_type="3"):
         """Executes the full logit lens analysis workflow for the initialized model."""
         print(f"\n{'='*60}")
         print(f"Processing model: {self.model_name}")
         print(f"{'='*60}")
         try:
-
-            u_ids = self.getUncertaintyTokens()
-            print(f"Uncertainty token ids: {len(u_ids)} found")
-            if not u_ids:
-                print("Warning: No uncertainty tokens found; results may be uninformative.")
-
-            print("Computing masses for real prompt...")
-            real_mass = self._mass_by_layer(self.normal_prompt, u_ids)
-
-            print("Computing masses for fictional prompt...")
-            fake_mass = self._mass_by_layer(self.uncertainty_prompt, u_ids)
-
-            layers = list(range(self.model.cfg.n_layers))
-
-            print("Plotting and saving...")
-            self._plot_logit_lens(layers, real_mass, fake_mass)
-            self._print_layerwise_table(layers, real_mass, fake_mass)
-
-        except Exception as e:
-            print(f"Error processing {self.model_name}: {e}")
-            import traceback
-            traceback.print_exc()
-        finally:
-            # Free memory per model
-            if self.model is not None:
-                del self.model
-                self.model = None # Clear reference
-            torch.cuda.empty_cache() if torch.cuda.is_available() else None
-
-    def run_analysis(self):
-        """Executes the full logit lens analysis workflow for the initialized model."""
-        print(f"\n{'='*60}")
-        print(f"Processing model: {self.model_name}")
-        print(f"{'='*60}")
-        try:
-            
-            certain_mass = None
-            not_enough_info_mass = None
             n = 0
             u_ids = self.getUncertaintyTokens()
 
-            #certain, manipulated_1, manipulated_2, manipulated_3, manipulated_4, manipulated_5 = self.getManipulatedData5()
-            #certain, fully_manipulated, partially_manipulated = self.getManipulatedDataTwoGroups()
-            certain, manipulated_1, manipulated_2, manipulated_3 = self.getManipulatedData3()
-            #certain, not_enough_info = self.getPreparedData()
-            Investigating_datasets = [
-                ("certain", certain),
-                #("not_enough_info", not_enough_info),
-                #("fully_manipulated", fully_manipulated),
-                #("partially_manipulated", partially_manipulated),
-                ("manipulated_1", manipulated_1),
-                ("manipulated_2", manipulated_2),
-                ("manipulated_3", manipulated_3),
-                #("manipulated_4", manipulated_4),
-                #("manipulated_5", manipulated_5),
-            ]
+            Investigating_datasets = self._get_investigating_datasets(manipulation_type)
             manipulated_masses = {}
             counting = []
 
@@ -156,17 +101,13 @@ class LogitLensAnalysis(experiments_base):
                 total_mass = None
                 n = 0
 
-                for i in range(len(dataset)):
-                    print(f"Computing masses for {name} prompt {i+1}/{len(dataset)}...")
-
-                    prompt = self.normal_prompt + dataset[i]["input_text"]
-                    prompt = self.build_chat_prompt(prompt)
+                for i in range(1):
+                    print(f"Computing masses for {name} prompt {i+1}/{len(dataset)}...") 
+                    prompt = self.build_chat_prompt(dataset[i]["input_text"])
 
                     #new_mass = self._mass_by_layer(prompt, u_ids)
                     #new_certain_mass = self.entropy_by_layer(certain_prompt)
                     new_mass = self.change_by_layer(prompt)
-                    #response = self.get_model_response(certain_prompt)
-                    #self._print_response(response, i, certain_prompt)
 
                     if total_mass is None:
                         total_mass = new_mass
@@ -184,13 +125,19 @@ class LogitLensAnalysis(experiments_base):
 
                 manipulated_masses[name] = average_mass
             layers = list(range(self.model.cfg.n_layers))
+
+            out_dir = self.get_out_dir() # Get output directory based on model name
+
             print("Plotting and saving...")
-            #self._plot_logit_lens(layers, manipulated_masses["certain"], manipulated_masses["not_enough_info"])
-            #self._plot_logit_lens(layers, manipulated_masses["certain"], manipulated_masses["manipulated_1"],manipulated_masses["manipulated_2"],manipulated_masses["manipulated_3"],manipulated_masses["manipulated_4"],manipulated_masses["manipulated_5"])
-            self._plot_logit_lens(layers, manipulated_masses["certain"], manipulated_masses["manipulated_1"],manipulated_masses["manipulated_2"],manipulated_masses["manipulated_3"])
-            #self._plot_logit_lens(layers, manipulated_masses["certain"], manipulated_masses["fully_manipulated"],manipulated_masses["partially_manipulated"])
+            self._plot_logit_lens(layers, manipulated_masses, manipulation_type, out_dir, "Layer", "Average (over prompts) Change by Layer", "Change per Layer")
+
+            print("Saving CSV...")
+            self._save_uncertainty_mass_csv(layers, manipulated_masses, out_dir)
+
+            print("Saving run_info.json...")
+            self._save_run_info(out_dir,manipulation_type, counting, "logit lens")
+
             print(counting)
-            #self._print_layerwise_table(layers, certain_mass, not_enough_info_mass)
 
         except Exception as e:
             print(f"Error processing {self.model_name}: {e}")
@@ -203,77 +150,12 @@ class LogitLensAnalysis(experiments_base):
                 self.model = None # Clear reference
             torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
+    def get_out_dir(self):
+        safe_model_name = self.model_name.replace("/", "_")
+        out_dir = f"../results/logit_lens/{safe_model_name}"
+        os.makedirs(out_dir, exist_ok=True)
 
-    def _print_response(self, response, i, prompt):
-        print("\n" + "="*80)
-        print(f"PROMPT {i}")
-        print(prompt)
-        print("\nMODEL RESPONSE:")
-        print(response)
-        print("="*80)
-        
-    def _print_layerwise_table(self, layers, certain_mass, not_enough_info_mass):
-      """Print (and optionally write) a descriptive table of layer-wise uncertainty masses."""
-      delta = [f - r for f, r in zip(not_enough_info_mass, certain_mass)]
-
-      header = f"\nAverage Layer-wise logit lens uncertainty mass (over prompts) ({self.model_name})\n"
-      header += "Layer  |   certain Mass    |  Not enough Info Mass    |   Delta\n"
-      header += "------ | -------------- | ------------- | --------------"
-
-      lines = [header]
-
-      for l, r, f, d in zip(layers, certain_mass, not_enough_info_mass, delta):
-          lines.append(
-              f"{l:>5}  | {r:>14.3e} | {f:>13.3e} | {d:>14.3e}"
-          )
-
-      table = "\n".join(lines)
-
-      # Print to console
-      print(table)
-    #def _plot_logit_lens(self, layers, certain_mass, manipulated_1_mass, manipulated_2_mass):
-    #def _plot_logit_lens(self, layers, certain_mass, manipulated_1_mass, manipulated_2_mass, manipulated_3_mass, manipulated_4_mass, manipulated_5_mass):
-    #def _plot_logit_lens(self, layers, certain_mass, not_enough_info_mass):
-    #def _plot_logit_lens(self, layers, certain_mass, fully_manipulated_mass, partially_manipulated_mass):
-    
-    
-    def _plot_logit_lens(self, layers, certain_mass, manipulated_1_mass, manipulated_2_mass, manipulated_3_mass):
-        plt.figure(figsize=(10, 6))
-        plt.plot(layers, certain_mass, label="certain prompt", marker="o", color="steelblue")
-        #plt.plot(layers, not_enough_info_mass, label="not enough info", marker="o", color="coral")
-        #plt.plot(layers, fully_manipulated_mass, label="fully manipulated", marker="o", color="seagreen")
-        #plt.plot(layers, partially_manipulated_mass, label="partially manipulated", marker="o", color="darkgreen")
-        plt.plot(layers, manipulated_1_mass, label="manipulated_1", marker="o", color="seagreen")
-        plt.plot(layers, manipulated_2_mass, label="manipulated_2", marker="o", color="darkgreen")
-        plt.plot(layers, manipulated_3_mass, label="manipulated_3", marker="o", color="purple")
-        #plt.plot(layers, manipulated_4_mass, label="manipulated_4", marker="o", color="orange")
-        #plt.plot(layers, manipulated_5_mass, label="manipulated_5", marker="o", color="brown")
-        #delta = [f - r for f, r in zip(not_enough_info_mass, certain_mass)]
-        #plt.plot(layers, delta, label="Delta (not enough info - certain)", linestyle="--", color="darkgreen")
-        # Annotate max delta layer
-        #if len(delta) > 0:
-        #    idx_max = max(range(len(delta)), key=lambda i: delta[i])
-        #    plt.scatter([layers[idx_max]], [delta[idx_max]], color="darkgreen", zorder=3)
-        #    plt.annotate(
-        #       f"max Δ @ L{layers[idx_max]}\n{delta[idx_max]:.2e}",
-        #        (layers[idx_max], delta[idx_max]),
-        #       textcoords="offset points", xytext=(10, -10), ha="left",
-        #        bbox=dict(boxstyle="round,pad=0.3", fc="#e8f5e9", ec="#2e7d32", alpha=0.8)
-        #    )
-        plt.xlabel("Layer")
-        plt.ylabel("Average (over prompts) Change by Layer")
-        plt.title(
-            f"Change per Layer\n{self.model_name}",
-        )
-        #plt.suptitle("Delta highlights where uncertainty begins to rise", fontsize=10, y=0.97)
-        plt.grid(True, alpha=0.4)
-        plt.legend()
-        plt.tight_layout()
-        out_path = f"logit_lens_Mass_{self.model_name.replace('/', '_')}.png"
-        plt.savefig(out_path, dpi=300, bbox_inches="tight")
-        print(f"Saved plot to {out_path}")
-        plt.close()
-
+        return out_dir
 
 #2.1 - Uncertainty mass measuring
 exp2 = LogitLensAnalysis()

@@ -152,6 +152,51 @@ class experiments_base:
 
         row["input_text"] = text
         return row
+    
+    def _get_investigating_datasets(self, manipulation_type):
+        manipulation_type = str(manipulation_type)
+
+        if manipulation_type == "3":
+            certain, manipulated_1, manipulated_2, manipulated_3 = self.getManipulatedData3()
+            return [
+                ("certain", certain),
+                ("manipulated_1", manipulated_1),
+                ("manipulated_2", manipulated_2),
+                ("manipulated_3", manipulated_3),
+            ]
+
+        elif manipulation_type == "5":
+            certain, manipulated_1, manipulated_2, manipulated_3, manipulated_4, manipulated_5 = self.getManipulatedData5()
+            return [
+                ("certain", certain),
+                ("manipulated_1", manipulated_1),
+                ("manipulated_2", manipulated_2),
+                ("manipulated_3", manipulated_3),
+                ("manipulated_4", manipulated_4),
+                ("manipulated_5", manipulated_5),
+            ]
+
+        elif manipulation_type == "two_groups":
+            certain, fully_manipulated, partially_manipulated = self.getManipulatedDataTwoGroups()
+            return [
+                ("certain", certain),
+                ("fully_manipulated", fully_manipulated),
+                ("partially_manipulated", partially_manipulated),
+            ]
+
+        elif manipulation_type == "not_enough_info":
+            certain, not_enough_info = self.getPreparedData()
+            return [
+                ("certain", certain),
+                ("not_enough_info", not_enough_info),
+            ]
+
+        else:
+            raise ValueError(
+                f"Unknown manipulation_type: {manipulation_type}. "
+                "Use one of: '3', '5', 'two_groups', 'not_enough_info'."
+            )
+        
     def getPreparedData(self):
 
         certain = self.dataset['train'].filter(lambda x: x['expert_eligibility'] in {"included", "not included", "excluded"})

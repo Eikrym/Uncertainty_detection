@@ -1,3 +1,7 @@
+import csv
+import json
+import subprocess
+
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM
 from transformer_lens import HookedTransformer
 from huggingface_hub import login
@@ -155,6 +159,51 @@ class experiments_base:
 
         row["input_text"] = text
         return row
+    def _get_investigating_datasets(self, manipulation_type):
+        manipulation_type = str(manipulation_type)
+
+        if manipulation_type == "3":
+            certain, manipulated_1, manipulated_2, manipulated_3 = self.getManipulatedData3()
+            return [
+                ("certain", certain),
+                ("manipulated_1", manipulated_1),
+                ("manipulated_2", manipulated_2),
+                ("manipulated_3", manipulated_3),
+            ]
+
+        elif manipulation_type == "5":
+            certain, manipulated_1, manipulated_2, manipulated_3, manipulated_4, manipulated_5 = self.getManipulatedData5()
+            return [
+                ("certain", certain),
+                ("manipulated_1", manipulated_1),
+                ("manipulated_2", manipulated_2),
+                ("manipulated_3", manipulated_3),
+                ("manipulated_4", manipulated_4),
+                ("manipulated_5", manipulated_5),
+            ]
+
+        elif manipulation_type == "two_groups":
+            certain, fully_manipulated, partially_manipulated = self.getManipulatedDataTwoGroups()
+            return [
+                ("certain", certain),
+                ("fully_manipulated", fully_manipulated),
+                ("partially_manipulated", partially_manipulated),
+            ]
+
+        elif manipulation_type == "not_enough_info":
+            certain, not_enough_info = self.getPreparedData()
+            return [
+                ("certain", certain),
+                ("not_enough_info", not_enough_info),
+            ]
+
+        else:
+            raise ValueError(
+                f"Unknown manipulation_type: {manipulation_type}. "
+                "Use one of: '3', '5', 'two_groups', 'not_enough_info'."
+            )
+        
+        
     def getPreparedData(self):
 
         certain = self.dataset['train'].filter(lambda x: x['expert_eligibility'] in {"included", "not included", "excluded"})
@@ -585,7 +634,83 @@ class experiments_base:
             remove_all_info,
             remove_every_possibility_except_complete
         )
+    
+    def _plot_logit_lens(self, layers, masses_by_name, manipulation_type, out_dir, xLabel, yLabel, title):
+        plt.figure(figsize=(10, 6))
+        for name, mass in masses_by_name.items():
+            if mass is None:
+                continue
 
+            plt.plot(
+                layers,
+                mass,
+                label=name,
+                marker="o",
+            )
+        
+        if manipulation_type == "not_enough_info":
+            delta = [f - r for f, r in zip(masses_by_name["not_enough_info"], masses_by_name["certain"])]
+            plt.plot(layers, delta, label="Delta (not enough info - certain)", linestyle="--", color="darkgreen")
+            # Annotate max delta layer
+            if len(delta) > 0:
+                idx_max = max(range(len(delta)), key=lambda i: delta[i])
+                plt.scatter([layers[idx_max]], [delta[idx_max]], color="darkgreen", zorder=3)
+                plt.annotate(
+                f"max Δ @ L{layers[idx_max]}\n{delta[idx_max]:.2e}",
+                    (layers[idx_max], delta[idx_max]),
+                textcoords="offset points", xytext=(10, -10), ha="left",
+                    bbox=dict(boxstyle="round,pad=0.3", fc="#e8f5e9", ec="#2e7d32", alpha=0.8)
+                )
+            plt.suptitle("Delta highlights where uncertainty begins to rise", fontsize=10, y=0.97)
+        plt.xlabel(xLabel)
+        plt.ylabel(yLabel)
+        plt.title(
+            f"{title}\n{self.model_name}",
+        )
+        plt.grid(True, alpha=0.4)
+        plt.legend()
+        plt.tight_layout()
+    
+        out_path = f"{out_dir}/logit_lens_Mass.png"
+        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+        print(f"Saved plot to {out_path}")
+        plt.close()
+
+    def _save_uncertainty_mass_csv(self, layers, results_by_name, out_dir):
+        out_path = f"{out_dir}/logit_lens_Mass.csv"
+        with open(out_path, mode="w", newline="") as csv_file:
+            writer = csv.writer(csv_file)
+            header = ["Layer"] + list(results_by_name.keys())
+            writer.writerow(header)
+            for i, layer in enumerate(layers):
+                row = [layer] + [results_by_name[name][i] if results_by_name[name] is not None else None for name in results_by_name.keys()]
+                writer.writerow(row)
+        print(f"Saved CSV to {out_path}")
+
+    def _save_run_info(self, out_dir, manipulation_type, counts_by_name, experiment, model = None, dataset = "TrialGPT-Criterion-Annotations"):
+        if model == None: 
+            model = self.model_name
+        run_info = { "experiment": experiment, "model": model, "manipulation_type": manipulation_type, "dataset": dataset, "git_commit": self._get_git_commit(), "counts_by_name": counts_by_name}
+        out_path = f"{out_dir}/run_info.json"
+
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(run_info, f, indent=2)
+
+        print(f"Saved run info to {out_path}")
+
+    def _get_git_commit(self):
+        """
+        Returns current git commit hash, or 'unknown' if unavailable.
+        """
+
+        try:
+            commit = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            )
+            return commit.decode("utf-8").strip()
+        except Exception:
+            return "unknown"
 
 
     def _run_model_with_cache(self, prompt):
