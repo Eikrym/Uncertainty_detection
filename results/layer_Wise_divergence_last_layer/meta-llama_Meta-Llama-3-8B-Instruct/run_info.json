@@ -1,0 +1,25 @@
+{
+  "experiment": "layerwise divergence",
+  "model": "meta-llama/Meta-Llama-3-8B-Instruct",
+  "manipulation_type": "3",
+  "dataset": "TrialGPT-Criterion-Annotations",
+  "git_commit": "1d41aa4",
+  "counts_by_name": [
+    [
+      "certain",
+      183
+    ],
+    [
+      "manipulated_1",
+      33
+    ],
+    [
+      "manipulated_2",
+      33
+    ],
+    [
+      "manipulated_3",
+      11
+    ]
+  ]
+}

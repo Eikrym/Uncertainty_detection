@@ -163,7 +163,7 @@ class experiments_base:
         manipulation_type = str(manipulation_type)
 
         if manipulation_type == "3":
-            certain, manipulated_1, manipulated_2, manipulated_3 = self.getManipulatedData3()
+            certain, manipulated_1, manipulated_2, manipulated_3 = self.get_three_sentence_removal_variants()
             return [
                 ("certain", certain),
                 ("manipulated_1", manipulated_1),
@@ -172,7 +172,7 @@ class experiments_base:
             ]
 
         elif manipulation_type == "5":
-            certain, manipulated_1, manipulated_2, manipulated_3, manipulated_4, manipulated_5 = self.getManipulatedData5()
+            certain, manipulated_1, manipulated_2, manipulated_3, manipulated_4, manipulated_5 = self.get_relevant_sentence_removal_variants()
             return [
                 ("certain", certain),
                 ("manipulated_1", manipulated_1),
@@ -183,7 +183,7 @@ class experiments_base:
             ]
 
         elif manipulation_type == "two_groups":
-            certain, fully_manipulated, partially_manipulated = self.getManipulatedDataTwoGroups()
+            certain, fully_manipulated, partially_manipulated = self.get_full_and_partial_removal_variants()
             return [
                 ("certain", certain),
                 ("fully_manipulated", fully_manipulated),
@@ -191,7 +191,7 @@ class experiments_base:
             ]
 
         elif manipulation_type == "not_enough_info":
-            certain, not_enough_info = self.getPreparedData()
+            certain, not_enough_info = self.get_certain_and_uncertain_examples()
             return [
                 ("certain", certain),
                 ("not_enough_info", not_enough_info),
@@ -204,20 +204,20 @@ class experiments_base:
             )
         
         
-    def getPreparedData(self):
+    def get_certain_and_uncertain_examples(self):
 
         certain = self.dataset['train'].filter(lambda x: x['expert_eligibility'] in {"included", "not included", "excluded"})
         not_enough_info = self.dataset['train'].filter(lambda x: x['expert_eligibility'] in {"not enough information"})
 
-        certain = certain.select_columns(['criterion_type','note', 'criterion_text'])
-        not_enough_info = not_enough_info.select_columns(['criterion_type','note', 'criterion_text'])
+        certain = certain.select_columns(['criterion_type','note', 'criterion_text', 'annotation_id'])
+        not_enough_info = not_enough_info.select_columns(['criterion_type','note', 'criterion_text', 'annotation_id'])
 
         certain = certain.map(lambda row: self.format_input({'criterion_type','note', 'criterion_text'}, row))
         not_enough_info = not_enough_info.map(lambda row: self.format_input({'criterion_type','note', 'criterion_text'}, row))
         return certain, not_enough_info  
 
     #remove first relevant sentence from note, to create manipulated version of dataset
-    def getManipulatedData3(self):
+    def get_three_sentence_removal_variants(self):
 
         # Keep only certain eligibility labels
         certain = self.dataset['train'].filter(
@@ -233,7 +233,8 @@ class experiments_base:
             'note',
             'criterion_text',
             'criterion_type',
-            'expert_sentences'
+            'expert_sentences',
+            'annotation_id'
         ])
 
         # Function applied to every row
@@ -326,7 +327,6 @@ class experiments_base:
         manipulated_1 = Dataset.from_list(new_rows_1)
         manipulated_2 = Dataset.from_list(new_rows_2)
         manipulated_3 = Dataset.from_list(new_rows_3)
-
         certain = certain.map(lambda row: self.format_input(("criterion_type","criterion_text","note"), row))
         manipulated_1 = manipulated_1.map(lambda row: self.format_input(("criterion_type","criterion_text","_note"), row))
         manipulated_2 = manipulated_2.map(lambda row: self.format_input(("criterion_type","criterion_text","_note"), row))
@@ -338,7 +338,7 @@ class experiments_base:
         #print(manipulated[1])
         return certain, manipulated_1, manipulated_2, manipulated_3
 
-    def getManipulatedData5(self):
+    def get_relevant_sentence_removal_variants(self):
 
         # Keep only certain eligibility labels
         certain = self.dataset['train'].filter(
@@ -354,7 +354,8 @@ class experiments_base:
             'note',
             'criterion_text',
             'criterion_type',
-            'expert_sentences'
+            'expert_sentences',
+            'annotation_id'
         ])
 
         # Function applied to every row
@@ -484,7 +485,7 @@ class experiments_base:
         #print(manipulated[1])
         return certain, manipulated_1, manipulated_2, manipulated_3, manipulated_4, manipulated_5
 
-    def getManipulatedDataTwoGroups(self):
+    def get_full_and_partial_removal_variants(self):
 
         # Keep only certain eligibility labels
         certain = self.dataset['train'].filter(
@@ -500,7 +501,8 @@ class experiments_base:
             'note',
             'criterion_text',
             'criterion_type',
-            'expert_sentences'
+            'expert_sentences',
+            'annotation_id'
         ])
 
         def parse_expert_sentences(important_sentences):
@@ -635,7 +637,7 @@ class experiments_base:
             remove_every_possibility_except_complete
         )
     
-    def _plot_logit_lens(self, layers, masses_by_name, manipulation_type, out_dir, xLabel, yLabel, title):
+    def plot(self, layers, masses_by_name, manipulation_type, out_dir, xLabel, yLabel, title):
         plt.figure(figsize=(10, 6))
         for name, mass in masses_by_name.items():
             if mass is None:
@@ -676,7 +678,7 @@ class experiments_base:
         print(f"Saved plot to {out_path}")
         plt.close()
 
-    def _save_uncertainty_mass_csv(self, layers, results_by_name, out_dir):
+    def _save_csv(self, layers, results_by_name, out_dir):
         out_path = f"{out_dir}/logit_lens_Mass.csv"
         with open(out_path, mode="w", newline="") as csv_file:
             writer = csv.writer(csv_file)

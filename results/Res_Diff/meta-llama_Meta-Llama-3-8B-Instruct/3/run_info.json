@@ -1,0 +1,25 @@
+{
+  "experiment": "logit lens",
+  "model": "meta-llama/Meta-Llama-3-8B-Instruct",
+  "manipulation_type": "3",
+  "dataset": "TrialGPT-Criterion-Annotations",
+  "git_commit": "1d41aa4",
+  "counts_by_name": [
+    [
+      "certain",
+      0
+    ],
+    [
+      "manipulated_1",
+      0
+    ],
+    [
+      "manipulated_2",
+      0
+    ],
+    [
+      "manipulated_3",
+      0
+    ]
+  ]
+}
