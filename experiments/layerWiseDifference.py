@@ -40,7 +40,7 @@ class LayerwiseDifference(experiments_base):
                 counting.append((name, n))
 
             layers = list(range(self.model.cfg.n_layers))
-            out_dir = self.get_out_dir() # Get output directory based on model name
+            out_dir = self.get_out_dir(manipulation_type) # Get output directory based on model name
 
             print("Plotting and saving...")
             self.plot(layers, div_to_last_layer, manipulation_type, out_dir, "Layer", "Mean L2 distance to final-layer head activations", "Layerwise distance to final representation")
@@ -64,9 +64,9 @@ class LayerwiseDifference(experiments_base):
                 self.model = None # Clear reference
             torch.cuda.empty_cache() if torch.cuda.is_available() else None
         
-    def get_out_dir(self):
+    def get_out_dir(self, manipulation_type):
         safe_model_name = self.model_name.replace("/", "_")
-        out_dir = f"../results/layer_Wise_divergence_last_layer/{safe_model_name}" 
+        out_dir = f"../results/layer_Wise_divergence_last_layer/{safe_model_name}/{manipulation_type}" 
         os.makedirs(out_dir, exist_ok=True)
 
         return out_dir
@@ -155,4 +155,4 @@ class LayerwiseDifference(experiments_base):
 
 #3.2.3 - difference to last layer 
 exp323 = LayerwiseDifference()
-exp323.run_analysis()
+exp323.run_analysis("two_groups")

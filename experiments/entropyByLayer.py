@@ -1,35 +1,40 @@
 from base import *
 
-class ChangeByLayer(experiments_base):
+class entropyByLayer(experiments_base):
     def __init__(self):
         super().__init__()
 
 
-    def change_by_layer(self, prompt):
-        _, cache = self.model.run_with_cache(
-            prompt,
-            names_filter=lambda n: "hook_resid_post" in n,
-        )
 
-        prev_resid = None
-        instabilities = []
 
+    def entropy_by_layer(self, prompt):
+        """Compute entropy for each layer"""
+        # Cache only resid_post to reduce memory
+        print(f"entering _entropy_by_layer for prompt: '{prompt[:50]}...' ")
+        with torch.no_grad():
+            _, cache = self.model.run_with_cache(
+                prompt,
+                names_filter=lambda n: ("hook_resid_post" in n),
+            )
+        masses = []
         for layer in range(self.model.cfg.n_layers):
-            resid = cache[f"blocks.{layer}.hook_resid_post"][0, -1]
+            resid = cache[f"blocks.{layer}.hook_resid_post"][0, -1]  # [d_model]
+            # Project through ln_final + unembed to get pseudo-logits
+            pseudo_logits = resid @ self.model.W_U
+            pseudo_logits = pseudo_logits + self.model.b_U
 
-            if prev_resid is not None:
-                cos_sim = torch.nn.functional.cosine_similarity(
-                    resid, prev_resid, dim=0
-                )
-                instabilities.append((1 - cos_sim).item())
-            else:
-                instabilities.append(0)
+            log_probs = torch.log_softmax(pseudo_logits, dim=-1)
+            probs = log_probs.exp()
+            entropy = -(probs * log_probs).sum()
+            masses.append(entropy.item())
 
-            prev_resid = resid
+        print(f"exiting entropy_by_layer")
 
-        return instabilities
+        return masses
+
     
-    def run_analysis(self, manipulation_type="3"):
+    
+    def run_analysis(self, manipulation_type="3", max_examples = None):
         """Executes the full logit lens analysis workflow for the initialized model."""
         print(f"\n{'='*60}")
         print(f"Processing model: {self.model_name}")
@@ -48,11 +53,12 @@ class ChangeByLayer(experiments_base):
 
                 total_mass = None
                 n = 0
-
-                for i in range(len(dataset)):
+                limit = len(dataset) if max_examples is None else min(len(dataset), max_examples)
+                for i in range(limit):
                     print(f"Computing masses for {name} prompt {i+1}/{len(dataset)}...") 
                     prompt = self.build_chat_prompt(dataset[i]["input_text"])
-                    new_mass = self.change_by_layer(prompt)
+
+                    new_mass = self.entropy_by_layer(prompt)
 
                     if total_mass is None:
                         total_mass = new_mass
@@ -74,13 +80,13 @@ class ChangeByLayer(experiments_base):
             out_dir = self.get_out_dir(manipulation_type) # Get output directory based on model name
 
             print("Plotting and saving...")
-            self.plot(layers, manipulated_masses, manipulation_type, out_dir, "Layer", "Average (over prompts) Change by Layer", "Change per Layer")
+            self.plot(layers, manipulated_masses, manipulation_type, out_dir, "Layer", "Average (over prompts) entropy by Layer", "entropy per Layer")
 
             print("Saving CSV...")
             self._save_csv(layers, manipulated_masses, out_dir)
 
             print("Saving run_info.json...")
-            self._save_run_info(out_dir,manipulation_type, counting, "logit lens")
+            self._save_run_info(out_dir,manipulation_type, counting, "entropy by Layer")
 
             print(counting)
 
@@ -97,14 +103,11 @@ class ChangeByLayer(experiments_base):
 
     def get_out_dir(self, manipulation_type):
         safe_model_name = self.model_name.replace("/", "_")
-        out_dir = f"../results/change_by_layer/{safe_model_name}/{manipulation_type}"
+        out_dir = f"../results/entropy/{safe_model_name}/{manipulation_type}"
         os.makedirs(out_dir, exist_ok=True)
 
         return out_dir
 
-#2.1 - Uncertainty mass measuring
-exp2 = ChangeByLayer()
-#exp2.run_analysis("3")
-#exp2.run_analysis("5")
-#exp2.run_analysis("not_enough_info")
+#2.1 - entropy by Layer
+exp2 = entropyByLayer()
 exp2.run_analysis("two_groups")

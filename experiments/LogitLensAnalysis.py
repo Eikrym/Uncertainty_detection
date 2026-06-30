@@ -11,7 +11,7 @@ class LogitLensAnalysis(experiments_base):
         print('this is the prompt the model receives')
         print(prompt)
         with torch.no_grad():
-            logits, cache = self.model.run_with_cache(
+            _, cache = self.model.run_with_cache(
                 prompt,
                 names_filter=lambda n: ("hook_resid_post" in n),
             )
@@ -126,7 +126,7 @@ class LogitLensAnalysis(experiments_base):
                 manipulated_masses[name] = average_mass
             layers = list(range(self.model.cfg.n_layers))
 
-            out_dir = self.get_out_dir() # Get output directory based on model name
+            out_dir = self.get_out_dir(manipulation_type) # Get output directory based on model name
 
             print("Plotting and saving...")
             self.plot(layers, manipulated_masses, manipulation_type, out_dir, "Layer", "Average (over prompts) Change by Layer", "Change per Layer")
@@ -150,9 +150,9 @@ class LogitLensAnalysis(experiments_base):
                 self.model = None # Clear reference
             torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
-    def get_out_dir(self):
+    def get_out_dir(self, manipulation_type):
         safe_model_name = self.model_name.replace("/", "_")
-        out_dir = f"../results/logit_lens/{safe_model_name}"
+        out_dir = f"../results/logit_lens/{safe_model_name}/{manipulation_type}"
         os.makedirs(out_dir, exist_ok=True)
 
         return out_dir

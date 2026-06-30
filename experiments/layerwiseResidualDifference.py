@@ -120,6 +120,7 @@ class LayerwiseResidualDifference(experiments_base):
                     with torch.no_grad():
                         _, cache = self.model.run_with_cache(prompt, names_filter=lambda name: "hook_resid_post" in name, return_type=None)
                     batch_cache.append((cache, dataset[i]['annotation_id']))
+                    n +=1
                 if batch_certain is None:
                     batch_certain = list(batch_cache)
                 counting.append((name, n))
@@ -132,7 +133,7 @@ class LayerwiseResidualDifference(experiments_base):
                 else:
                     current_layer_diffs  = self.compute_group_residual_diff_paired(batch_certain, batch_cache)
                 all_layer_diffs[name]= current_layer_diffs
-                n +=1
+                
             layers = list(range(self.model.cfg.n_layers))
             out_dir = self.get_out_dir(manipulation_type) # Get output directory based on model name
 
