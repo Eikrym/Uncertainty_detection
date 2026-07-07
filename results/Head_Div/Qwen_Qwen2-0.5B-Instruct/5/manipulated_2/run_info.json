@@ -1,0 +1,8 @@
+{
+  "experiment": "Headwise Divergence",
+  "model": "Qwen/Qwen2-0.5B-Instruct",
+  "exact_manipulation": "manipulated_2",
+  "dataset": "TrialGPT-Criterion-Annotations",
+  "git_commit": "48c1283",
+  "datapoints": 170
+}

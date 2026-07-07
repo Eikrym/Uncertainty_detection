@@ -3,8 +3,11 @@ from base import *
 class HeadwiseDivergence(experiments_base):
     """Analyzes which attention heads contribute most to divergence between certain and uncertain inputs."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, Model_name=None):
+        if(Model_name is None):
+            super().__init__()
+        else:
+            super().__init__(model_name=Model_name)
 
     def _compute_headwise_divergence_global(self, cache_group_a, cache_group_b):
         """Compute divergence per attention head."""
@@ -281,7 +284,7 @@ class HeadwiseDivergence(experiments_base):
         self._print_top_heads(head_diffs, top_k=15)
         return head_diffs
     
-    def run_over_dataset(self,  manipulation_type="3"):
+    def run_analysis(self,  manipulation_type="3", max_examples = None):
 
         """Execute the experiment."""
         print(f"\n{'='*60}")
@@ -300,7 +303,11 @@ class HeadwiseDivergence(experiments_base):
                 print(f"{'='*60}")
                 batch_cache = []
                 n=0
-                for i in range(min(len(dataset), 160)):
+                if name == "certain":
+                    limit = len(dataset)
+                else:
+                    limit = len(dataset) if max_examples is None else min(len(dataset), max_examples)
+                for i in range(limit):
                     print(f"Computing divergence for {name} prompt {i+1}/{len(dataset)}...") 
                     prompt = self.build_chat_prompt(dataset[i]["input_text"])
                     
@@ -370,5 +377,6 @@ class HeadwiseDivergence(experiments_base):
 
         return flat_heads
 
-expHeadDiv = HeadwiseDivergence()
-expHeadDiv.run_over_dataset("5")
+if __name__ == "__main__":
+    expHeadDiv = HeadwiseDivergence()
+    expHeadDiv.run_analysis("two_groups", max_examples=160)

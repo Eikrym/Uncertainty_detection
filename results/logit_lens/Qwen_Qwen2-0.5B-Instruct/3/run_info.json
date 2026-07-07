@@ -1,0 +1,25 @@
+{
+  "experiment": "logit lens",
+  "model": "Qwen/Qwen2-0.5B-Instruct",
+  "manipulation_type": "3",
+  "dataset": "TrialGPT-Criterion-Annotations",
+  "git_commit": "48c1283",
+  "counts_by_name": [
+    [
+      "certain",
+      183
+    ],
+    [
+      "manipulated_1",
+      33
+    ],
+    [
+      "manipulated_2",
+      33
+    ],
+    [
+      "manipulated_3",
+      11
+    ]
+  ]
+}

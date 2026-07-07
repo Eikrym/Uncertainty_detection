@@ -1,15 +1,18 @@
 from base import *
 
 class LogitLensAnalysis(experiments_base):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, Model_name=None):
+        if(Model_name is None):
+            super().__init__()
+        else:
+            super().__init__(model_name=Model_name)
 
     def _mass_by_layer(self, prompt, token_ids):
         """Compute uncertainty mass per layer using logit lens on the last position."""
         # Cache only resid_post to reduce memory
-        print(f"entering _mass_by_layer for prompt: '{prompt[:50]}...' ")
-        print('this is the prompt the model receives')
-        print(prompt)
+        #print(f"entering _mass_by_layer for prompt: '{prompt[:50]}...' ")
+        #print('this is the prompt the model receives')
+        #print(prompt)
         with torch.no_grad():
             _, cache = self.model.run_with_cache(
                 prompt,
@@ -29,58 +32,8 @@ class LogitLensAnalysis(experiments_base):
             masses.append(probs[token_ids].sum().item())
         return masses
 
-
-    def entropy_by_layer(self, prompt):
-        """Compute entropy for each layer"""
-        # Cache only resid_post to reduce memory
-        print(f"entering _entropy_by_layer for prompt: '{prompt[:50]}...' ")
-        logits, cache = self.model.run_with_cache(
-            prompt,
-            names_filter=lambda n: ("hook_resid_post" in n),
-        )
-        masses = []
-        for layer in range(self.model.cfg.n_layers):
-            resid = cache[f"blocks.{layer}.hook_resid_post"][0, -1]  # [d_model]
-            # Project through ln_final + unembed to get pseudo-logits
-            try:
-                pseudo_logits = self.model.unembed(self.model.ln_final(resid))  # [vocab]
-            except Exception:
-                # Fallback: some models may require different ordering; try unembed then ln_final
-                pseudo_logits = self.model.ln_final(self.model.unembed(resid))
-            log_probs = torch.log_softmax(pseudo_logits, dim=-1)
-            probs = log_probs.exp()
-            entropy = -(probs * log_probs).sum()
-            masses.append(entropy)
-
-        print(f"exiting entropy_by_layer")
-
-        return masses
-
-    def change_by_layer(self, prompt):
-        logits, cache = self.model.run_with_cache(
-            prompt,
-            names_filter=lambda n: "hook_resid_post" in n,
-        )
-
-        prev_resid = None
-        instabilities = []
-
-        for layer in range(self.model.cfg.n_layers):
-            resid = cache[f"blocks.{layer}.hook_resid_post"][0, -1]
-
-            if prev_resid is not None:
-                cos_sim = torch.nn.functional.cosine_similarity(
-                    resid, prev_resid, dim=0
-                )
-                instabilities.append((1 - cos_sim).item())
-            else:
-                instabilities.append(0)
-
-            prev_resid = resid
-
-        return instabilities
     
-    def run_analysis(self, manipulation_type="3"):
+    def run_analysis(self, manipulation_type="3", max_examples = None):
         """Executes the full logit lens analysis workflow for the initialized model."""
         print(f"\n{'='*60}")
         print(f"Processing model: {self.model_name}")
@@ -91,6 +44,7 @@ class LogitLensAnalysis(experiments_base):
 
             Investigating_datasets = self._get_investigating_datasets(manipulation_type)
             manipulated_masses = {}
+            prompt_masses_by_name = {}
             counting = []
 
             for name, dataset in Investigating_datasets:
@@ -99,15 +53,16 @@ class LogitLensAnalysis(experiments_base):
                 print(f"{'='*60}")
 
                 total_mass = None
+                prompt_masses = []
                 n = 0
+                limit = len(dataset) if max_examples is None else min(len(dataset), max_examples)
 
-                for i in range(len(dataset)):
+                for i in range(limit):
                     print(f"Computing masses for {name} prompt {i+1}/{len(dataset)}...") 
                     prompt = self.build_chat_prompt(dataset[i]["input_text"])
 
                     new_mass = self._mass_by_layer(prompt, u_ids)
-                    #new_certain_mass = self.entropy_by_layer(certain_prompt)
-                    #new_mass = self.change_by_layer(prompt)
+                    prompt_masses.append(new_mass)
 
                     if total_mass is None:
                         total_mass = new_mass
@@ -124,12 +79,13 @@ class LogitLensAnalysis(experiments_base):
                     average_mass = None
 
                 manipulated_masses[name] = average_mass
+                prompt_masses_by_name[name] = prompt_masses
             layers = list(range(self.model.cfg.n_layers))
 
             out_dir = self.get_out_dir(manipulation_type) # Get output directory based on model name
 
             print("Plotting and saving...")
-            self.plot(layers, manipulated_masses, manipulation_type, out_dir, "Layer", "Average (over prompts) Change by Layer", "Change per Layer")
+            self.plot(layers, manipulated_masses, manipulation_type, out_dir, "Layer", "Average (over prompts) Change by Layer", "Change per Layer", prompt_masses_by_name, 2000)
 
             print("Saving CSV...")
             self._save_csv(layers, manipulated_masses, out_dir)
@@ -144,10 +100,6 @@ class LogitLensAnalysis(experiments_base):
             import traceback
             traceback.print_exc()
         finally:
-            # Free memory per model
-            if self.model is not None:
-                del self.model
-                self.model = None # Clear reference
             torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
     def get_out_dir(self, manipulation_type):
@@ -158,5 +110,6 @@ class LogitLensAnalysis(experiments_base):
         return out_dir
 
 #2.1 - Uncertainty mass measuring
-exp2 = LogitLensAnalysis()
-exp2.run_analysis()
+if __name__ == "__main__":
+    exp2 = LogitLensAnalysis()
+    exp2.run_analysis("not_enough_info")

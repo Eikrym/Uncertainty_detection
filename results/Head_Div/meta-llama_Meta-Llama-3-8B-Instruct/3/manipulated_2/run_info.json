@@ -3,6 +3,6 @@
   "model": "meta-llama/Meta-Llama-3-8B-Instruct",
   "exact_manipulation": "manipulated_2",
   "dataset": "TrialGPT-Criterion-Annotations",
-  "git_commit": "1f384a9",
+  "git_commit": "48c1283",
   "datapoints": 33
 }

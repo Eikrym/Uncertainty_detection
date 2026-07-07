@@ -3,15 +3,15 @@
   "model": "meta-llama/Meta-Llama-3-8B-Instruct",
   "manipulation_type": "not_enough_info",
   "dataset": "TrialGPT-Criterion-Annotations",
-  "git_commit": "1d41aa4",
+  "git_commit": "48c1283",
   "counts_by_name": [
     [
       "certain",
-      0
+      183
     ],
     [
       "not_enough_info",
-      0
+      183
     ]
   ]
 }

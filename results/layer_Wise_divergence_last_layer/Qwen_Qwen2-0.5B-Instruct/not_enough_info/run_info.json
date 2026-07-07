@@ -1,0 +1,17 @@
+{
+  "experiment": "layerwise divergence",
+  "model": "Qwen/Qwen2-0.5B-Instruct",
+  "manipulation_type": "not_enough_info",
+  "dataset": "TrialGPT-Criterion-Annotations",
+  "git_commit": "48c1283",
+  "counts_by_name": [
+    [
+      "certain",
+      183
+    ],
+    [
+      "not_enough_info",
+      293
+    ]
+  ]
+}

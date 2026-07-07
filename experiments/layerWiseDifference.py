@@ -3,12 +3,15 @@ from base import *
 class LayerwiseDifference(experiments_base):
     """Analyzes the difference in each layer compared to the last layer"""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, Model_name=None):
+        if(Model_name is None):
+            super().__init__()
+        else:
+            super().__init__(model_name=Model_name)
 
 
     
-    def run_analysis(self, manipulation_type="3"):
+    def run_analysis(self, manipulation_type="3", max_examples = None):
         """Executes the full logit lens analysis workflow for the initialized model."""
         print(f"\n{'='*60}")
         print(f"Processing model: {self.model_name}")
@@ -26,8 +29,8 @@ class LayerwiseDifference(experiments_base):
 
                 batch_cache = []
                 n = 0
-
-                for i in range(len(dataset)):
+                limit = len(dataset) if max_examples is None else min(len(dataset), max_examples)
+                for i in range(limit):
                     print(f"Computing masses for {name} prompt {i+1}/{len(dataset)}...") 
                     prompt = self.build_chat_prompt(dataset[i]["input_text"])
                     with torch.no_grad():
@@ -58,10 +61,6 @@ class LayerwiseDifference(experiments_base):
             import traceback
             traceback.print_exc()
         finally:
-            # Free memory per model
-            if self.model is not None:
-                del self.model
-                self.model = None # Clear reference
             torch.cuda.empty_cache() if torch.cuda.is_available() else None
         
     def get_out_dir(self, manipulation_type):
@@ -154,5 +153,6 @@ class LayerwiseDifference(experiments_base):
         plt.close()
 
 #3.2.3 - difference to last layer 
-exp323 = LayerwiseDifference()
-exp323.run_analysis("two_groups")
+if __name__ == "__main__":
+    exp323 = LayerwiseDifference()
+    exp323.run_analysis("two_groups")

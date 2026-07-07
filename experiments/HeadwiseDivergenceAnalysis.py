@@ -1,11 +1,14 @@
+from json.scanner import NUMBER_RE
 from pathlib import Path
 import re
 import sys
 import pandas as pd
 
-
-CONDITIONS = ["certain", "manipulated_1", "manipulated_2", "manipulated_3"]
-NUMBER_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+CONDITIONS = {}
+CONDITIONS['3'] = ["certain", "manipulated_1", "manipulated_2", "manipulated_3"]
+CONDITIONS['3'] = ["certain", "manipulated_1", "manipulated_2", "manipulated_3", "manipulated_4", "manipulated_5"]
+CONDITIONS['not_enough_info'] = ["certain", "not_enough_info"]
+CONDITIONS['two_groups'] = ["certain", "partially_manipulated", "fully_manipulated"]
 
 
 def to_float(value):
@@ -24,9 +27,10 @@ def load_tables(manipulation_type, model):
     tables = {}
     model = model.replace("/","_")
 
-    for condition in CONDITIONS:
+    for condition in CONDITIONS[manipulation_type]:
         csv_path =   f"../results/Head_Div/{model}/{manipulation_type}/{condition}/head_div.csv"
         table = pd.read_csv(csv_path)
+        table = table[table[table.columns[1:]].notna().all(axis=1)]
 
         for column in table.columns:
             if column != "Layer":
@@ -36,13 +40,13 @@ def load_tables(manipulation_type, model):
     return tables
 
 
-def build_layer_head_ranking(tables):
+def build_layer_head_ranking(tables, manipulation_type):
     heads = [column for column in tables["certain"].columns if column != "Layer"]
     rows = []
 
     for row_index, layer in enumerate(tables["certain"]["Layer"]):
         for head in heads:
-            values = [tables[condition].at[row_index, head] for condition in CONDITIONS]
+            values = [tables[condition].at[row_index, head] for condition in CONDITIONS[manipulation_type]]
             steps = [values[i + 1] - values[i] for i in range(len(values) - 1)]
 
             rows.append({
@@ -71,11 +75,13 @@ def build_layer_head_ranking(tables):
 
 
 def run(manipulation_type, model):
-    results_dir =Path("../results/Head_Div_Analysis")
+    path = Path(f"../results/Head_Div_Analysis/{model.replace('/','_')}/{manipulation_type}")
+    results_dir = Path(path)
+
 
     tables = load_tables(manipulation_type, model)
 
-    layer_ranking = build_layer_head_ranking(tables)
+    layer_ranking = build_layer_head_ranking(tables, manipulation_type)
 
     results_dir.mkdir(parents=True, exist_ok=True)
     layer_ranking.to_csv(results_dir / "head_increase_layer_head_ranking.csv", index=False)    
@@ -84,4 +90,4 @@ def run(manipulation_type, model):
     print(f"Alle Ergebnisse liegen direkt unter: {results_dir}")
 
 
-run("3","meta-llama/Meta-Llama-3-8B-Instruct")
+run("not_enough_info","meta-llama/Meta-Llama-3-8B-Instruct")

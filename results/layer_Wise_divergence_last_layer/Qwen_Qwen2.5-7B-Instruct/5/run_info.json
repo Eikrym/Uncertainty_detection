@@ -1,0 +1,33 @@
+{
+  "experiment": "layerwise divergence",
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "manipulation_type": "5",
+  "dataset": "TrialGPT-Criterion-Annotations",
+  "git_commit": "48c1283",
+  "counts_by_name": [
+    [
+      "certain",
+      183
+    ],
+    [
+      "manipulated_1",
+      247
+    ],
+    [
+      "manipulated_2",
+      170
+    ],
+    [
+      "manipulated_3",
+      186
+    ],
+    [
+      "manipulated_4",
+      185
+    ],
+    [
+      "manipulated_5",
+      151
+    ]
+  ]
+}

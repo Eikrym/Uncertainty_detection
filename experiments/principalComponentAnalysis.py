@@ -1,7 +1,11 @@
 from base import *
 class PrincipalComponentAnalysis(experiments_base):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, Model_name=None):
+        if(Model_name is None):
+            super().__init__()
+        else:
+            super().__init__(model_name=Model_name)
+
 
     def _get_last_token_residual(self, prompt, layer=-1):
         """
@@ -231,12 +235,9 @@ class PrincipalComponentAnalysis(experiments_base):
             import traceback
             traceback.print_exc()
         finally:
-            # Free memory per model
-            if self.model is not None:
-                del self.model
-                self.model = None # Clear reference
             torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
 #5.4.1 - PCA
-exp541 = PrincipalComponentAnalysis()
-exp541.run_analysis("3",-1)
+if __name__ == "__main__":
+    exp541 = PrincipalComponentAnalysis()
+    exp541.run_analysis("3",-1)

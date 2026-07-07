@@ -1,8 +1,11 @@
 from base import *
 
 class entropyByLayer(experiments_base):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, Model_name=None):
+        if(Model_name is None):
+            super().__init__()
+        else: 
+            super().__init__(model_name=Model_name)
 
 
 
@@ -44,6 +47,7 @@ class entropyByLayer(experiments_base):
 
             Investigating_datasets = self._get_investigating_datasets(manipulation_type)
             manipulated_masses = {}
+            prompt_entropies_by_name = {}
             counting = []
 
             for name, dataset in Investigating_datasets:
@@ -54,11 +58,13 @@ class entropyByLayer(experiments_base):
                 total_mass = None
                 n = 0
                 limit = len(dataset) if max_examples is None else min(len(dataset), max_examples)
+                prompt_entropies = []
                 for i in range(limit):
                     print(f"Computing masses for {name} prompt {i+1}/{len(dataset)}...") 
                     prompt = self.build_chat_prompt(dataset[i]["input_text"])
 
                     new_mass = self.entropy_by_layer(prompt)
+                    prompt_entropies.append(new_mass)
 
                     if total_mass is None:
                         total_mass = new_mass
@@ -75,12 +81,13 @@ class entropyByLayer(experiments_base):
                     average_mass = None
 
                 manipulated_masses[name] = average_mass
+                prompt_entropies_by_name[name] = prompt_entropies
             layers = list(range(self.model.cfg.n_layers))
 
             out_dir = self.get_out_dir(manipulation_type) # Get output directory based on model name
 
             print("Plotting and saving...")
-            self.plot(layers, manipulated_masses, manipulation_type, out_dir, "Layer", "Average (over prompts) entropy by Layer", "entropy per Layer")
+            self.plot(layers, manipulated_masses, manipulation_type, out_dir, "Layer", "Average (over prompts) entropy by Layer", "entropy per Layer", prompt_entropies_by_name, 2000)
 
             print("Saving CSV...")
             self._save_csv(layers, manipulated_masses, out_dir)
@@ -95,10 +102,6 @@ class entropyByLayer(experiments_base):
             import traceback
             traceback.print_exc()
         finally:
-            # Free memory per model
-            if self.model is not None:
-                del self.model
-                self.model = None # Clear reference
             torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
     def get_out_dir(self, manipulation_type):
@@ -109,5 +112,6 @@ class entropyByLayer(experiments_base):
         return out_dir
 
 #2.1 - entropy by Layer
-exp2 = entropyByLayer()
-exp2.run_analysis("two_groups")
+if __name__ == "__main__":
+    exp2 = entropyByLayer()
+    exp2.run_analysis("two_groups")

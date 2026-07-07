@@ -637,7 +637,7 @@ class experiments_base:
             remove_every_possibility_except_complete
         )
     
-    def plot(self, layers, masses_by_name, manipulation_type, out_dir, xLabel, yLabel, title):
+    def _plot(self, layers, masses_by_name, manipulation_type, out_dir, xLabel, yLabel, title):
         plt.figure(figsize=(10, 6))
         for name, mass in masses_by_name.items():
             if mass is None:
@@ -682,11 +682,19 @@ class experiments_base:
         out_path = f"{out_dir}/logit_lens_Mass.csv"
         with open(out_path, mode="w", newline="") as csv_file:
             writer = csv.writer(csv_file)
-            header = ["Layer"] + list(results_by_name.keys())
+            keys = list(results_by_name.keys())
+            delta_keys = [k for k in keys if k != "certain"]
+
+            header = ["Layer"] + keys + [f"delta_{k}" for k in delta_keys]
             writer.writerow(header)
+
             for i, layer in enumerate(layers):
-                row = [layer] + [results_by_name[name][i] if results_by_name[name] is not None else None for name in results_by_name.keys()]
+                row = [layer] + [results_by_name[name][i] if results_by_name[name] is not None else None for name in keys]
+                row += [results_by_name[k][i] - results_by_name["certain"][i] for k in delta_keys]
                 writer.writerow(row)
+
+            writer.writerow(["max_delta_to_certain"] + [max(abs(v - c) for v, c in zip(results_by_name[name], results_by_name["certain"])) if results_by_name[name] is not None else None for name in keys])
+
         print(f"Saved CSV to {out_path}")
 
     def _save_run_info(self, out_dir, manipulation_type, counts_by_name, experiment, model = None, dataset = "TrialGPT-Criterion-Annotations"):
@@ -719,4 +727,146 @@ class experiments_base:
         """Run model and return logits + cache."""
         logits, cache = self.model.run_with_cache(prompt)
         return logits, cache    
-            
+    
+    def plot(
+        self,
+        layers,
+        masses_by_name,
+        manipulation_type,
+        out_dir,
+        xLabel,
+        yLabel,
+        title,
+        prompt_masses_by_name=None,
+        n_boot=2000, 
+        ci_by_name=None
+    ):
+        plt.figure(figsize=(10, 6))
+
+        for name, mass in masses_by_name.items():
+            if mass is None:
+                continue
+
+            plt.plot(
+                layers,
+                mass,
+                label=name,
+                marker="o",
+            )
+
+            # Case 1: CI was already computed, e.g. unpaired group bootstrap
+            if ci_by_name is not None and name in ci_by_name and ci_by_name[name] is not None:
+                lower, upper = ci_by_name[name]
+                plt.fill_between(layers, lower, upper, alpha=0.15)
+
+            # Optional: 95% bootstrap confidence interval
+            elif prompt_masses_by_name is not None and name in prompt_masses_by_name:
+                prompt_masses = prompt_masses_by_name[name]
+
+                if prompt_masses is not None and len(prompt_masses) > 1:
+                    lower, upper = self._bootstrap_ci_by_layer(
+                        prompt_masses,
+                        n_boot=n_boot
+                    )
+
+                    plt.fill_between(
+                        layers,
+                        lower,
+                        upper,
+                        alpha=0.15
+                    )
+
+        if manipulation_type == "not_enough_info":
+            delta = [
+                f - r
+                for f, r in zip(
+                    masses_by_name["not_enough_info"],
+                    masses_by_name["certain"]
+                )
+            ]
+
+            plt.plot(
+                layers,
+                delta,
+                label="Delta (not enough info - certain)",
+                linestyle="--",
+                color="darkgreen"
+            )
+
+            if len(delta) > 0:
+                idx_max = max(range(len(delta)), key=lambda i: delta[i])
+                plt.scatter([layers[idx_max]], [delta[idx_max]], color="darkgreen", zorder=3)
+                plt.annotate(
+                    f"max Δ @ L{layers[idx_max]}\n{delta[idx_max]:.2e}",
+                    (layers[idx_max], delta[idx_max]),
+                    textcoords="offset points",
+                    xytext=(10, -10),
+                    ha="left",
+                    bbox=dict(
+                        boxstyle="round,pad=0.3",
+                        fc="#e8f5e9",
+                        ec="#2e7d32",
+                        alpha=0.8
+                    )
+                )
+
+            plt.suptitle(
+                "Delta highlights where uncertainty begins to rise",
+                fontsize=10,
+                y=0.97
+            )
+
+        plt.xlabel(xLabel)
+        plt.ylabel(yLabel)
+        plt.title(
+            f"{title}\n{self.model_name}",
+        )
+        plt.grid(True, alpha=0.4)
+        plt.legend()
+        plt.tight_layout()
+
+        out_path = f"{out_dir}/logit_lens_Mass.png"
+        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+        print(f"Saved plot to {out_path}")
+        plt.close()
+
+    def _bootstrap_ci_by_layer(self, prompt_masses, n_boot=2000):
+        """
+        Computes a 95% bootstrap confidence interval for each layer.
+
+        prompt_masses:
+            list of lists, shape approximately [n_prompts, n_layers]
+            Example:
+            [
+                [mass_L0, mass_L1, ..., mass_L31],
+                [mass_L0, mass_L1, ..., mass_L31],
+                ...
+            ]
+        """
+
+        prompt_masses = np.array(prompt_masses, dtype=float)
+
+        n_prompts = prompt_masses.shape[0]
+
+        boot_means = []
+
+        for _ in range(n_boot):
+            sampled_indices = np.random.choice(
+                n_prompts,
+                size=n_prompts,
+                replace=True
+            )
+
+            sampled = prompt_masses[sampled_indices, :]
+
+            mean_by_layer = sampled.mean(axis=0)
+
+            boot_means.append(mean_by_layer)
+
+        boot_means = np.array(boot_means)
+
+        lower = np.percentile(boot_means, 2.5, axis=0)
+        upper = np.percentile(boot_means, 97.5, axis=0)
+
+        return lower, upper
+                

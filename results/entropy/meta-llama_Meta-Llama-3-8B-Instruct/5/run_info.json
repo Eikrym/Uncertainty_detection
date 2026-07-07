@@ -3,7 +3,7 @@
   "model": "meta-llama/Meta-Llama-3-8B-Instruct",
   "manipulation_type": "5",
   "dataset": "TrialGPT-Criterion-Annotations",
-  "git_commit": "1f384a9",
+  "git_commit": "48c1283",
   "counts_by_name": [
     [
       "certain",
